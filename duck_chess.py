@@ -34,7 +34,7 @@ class InvalidFenException(Exception):
 
 
 class Piece():
-    # Initialize the Piece with a set color and type. Will be " --- " if its an empty space
+    # Initialize the Piece with a set color and type. Both will be None if its an empty space
     def __init__(self, type, color) -> None:
         self.type = type
         self.color = color
@@ -67,6 +67,8 @@ class Board():
     # Initialize Board with a List of column number of lists with row length
     def __init__(self, fen:str=DEFAULT_FEN, row=8, column=8) -> None:
         self.board = [[Piece(None, None) for x in range(column)] for y in range(row)]
+        self.check = False
+        self.kingPos = [(0, 0), (0, 0)]
         self.turn = True
         self.castling = 'KQkq'
         self.passant = '-'
@@ -141,96 +143,98 @@ class Board():
         piece.clearAvailableMoves()
         x, y = pos
         
-        # Pawn Movement
-        if piece.getType() == "Pawn":
-            # Adds the diagonal options for attack purposes
-            if attacking:
-                if color == "Black":
-                    piece.addMove((x + 1, y + 1))
-                    piece.addMove((x - 1, y + 1))
-                else:
-                    piece.addMove((x + 1, y - 1))
-                    piece.addMove((x - 1, y - 1))
-            # Normal movement
-            else:
-                for i in range(-1, 2):
-                    checked_move = (x + i, y + 1) if color == "Black" else (x + i, y - 1)
-                    if checked_move[0] >= 0 and checked_move[0] < 8 and checked_move[1] >= 0 and checked_move[1] < 8:
-                        # Check Diagonal attacks
-                        if ((i != 0 and self.getPiece(checked_move).getType() != None) and (self.getPiece(checked_move).getColor() != color)):
-                            piece.addMove(checked_move)
-                        # Check forward movement
-                        elif i == 0 and self.getPiece(checked_move).getType() == None:
-                            piece.addMove(checked_move)
-                            # Check if its White, one the starting pawn row, and that its moving to an empty space
-                            if y == 6 and color == "White" and self.getPiece((x, y - 2)).getType() == None:
-                                piece.addMove((x, y - 2))
-                            # Same thing but for black
-                            elif y == 1 and color == "Black" and self.getPiece((x, y + 2)).getType() == None:
-                                piece.addMove((x, y + 2))
-                        # Check En Passant
-                        elif self.passant == self.getNotation(checked_move):
-                            piece.addMove(checked_move)
-        
-        # Knight Movement
-        if piece.getType() == "Knight":
-            # Uses itertools itertools.product to get (x - 1,y - 2),(x - 1,y + 2),(x + 1,y - 2), etc.
-            for checked_move in list(itertools.product([x - 1, x + 1],[y - 2, y + 2])) + list(itertools.product([x - 2, x + 2], [y - 1, y + 1])):
-                # Checks if move is in bounds
-                if checked_move[0] >= 0 and checked_move[0] < 8 and checked_move[1] >= 0 and checked_move[1] < 8:
-                    # Checks if area is occupied by a piece of the same color
-                    if self.getPiece(checked_move).getColor() != color:
-                        piece.addMove(checked_move)
-        
-        # Rook Movement
-        if piece.getType() == "Rook":
-            # Generates moves along the vertical, then horizontal and splits them at the piece's position
-            # The left/top movement is reversed, so that it can break when it reaches a piece of the same color
-            for raycast in itertools.chain(raycastFrom([(x, i) for i in range(8)], pos), raycastFrom([(i, y) for i in range(8)], pos)):
-                for checked_move in raycast:
-                    if self.getPiece(checked_move).getType() != None:
-                        # If the piece isn't of the same color, it adds a move at that positon
-                        if self.getPiece(checked_move).getColor() != color:
-                            piece.addMove(checked_move)
-                        # If it ran into a piece, it stops the loop
-                        break
+        # Only move king if in check
+        if not self.check:
+            # Pawn Movement
+            if piece.getType() == "Pawn":
+                # Adds the diagonal options for attack purposes
+                if attacking:
+                    if color == "Black":
+                        piece.addMove((x + 1, y + 1))
+                        piece.addMove((x - 1, y + 1))
                     else:
-                        piece.addMove(checked_move)
-        
-        # Bishop Movement
-        if piece.getType() == "Bishop":
-            # Generates moves along two diagonals, one in the increasing x, increasing y and the other in the increasing x, decreasing y
-            # Then uses raycast from to order the points from the center in all four directs, seperationg them into 4 lists that are combined using itertools.chain
-            for raycast in itertools.chain(raycastFrom([(x + i, y + i) for i in range(-7, 8)], pos), raycastFrom([(x + i, y - i) for i in range(-7, 8)], pos)):
-                for checked_move in raycast:
-                    # Check if move is in bounds
+                        piece.addMove((x + 1, y - 1))
+                        piece.addMove((x - 1, y - 1))
+                # Normal movement
+                else:
+                    for i in range(-1, 2):
+                        checked_move = (x + i, y + 1) if color == "Black" else (x + i, y - 1)
+                        if checked_move[0] >= 0 and checked_move[0] < 8 and checked_move[1] >= 0 and checked_move[1] < 8:
+                            # Check Diagonal attacks
+                            if ((i != 0 and self.getPiece(checked_move).getType() != None) and (self.getPiece(checked_move).getColor() != color)):
+                                piece.addMove(checked_move)
+                            # Check forward movement
+                            elif i == 0 and self.getPiece(checked_move).getType() == None:
+                                piece.addMove(checked_move)
+                                # Check if its White, one the starting pawn row, and that its moving to an empty space
+                                if y == 6 and color == "White" and self.getPiece((x, y - 2)).getType() == None:
+                                    piece.addMove((x, y - 2))
+                                # Same thing but for black
+                                elif y == 1 and color == "Black" and self.getPiece((x, y + 2)).getType() == None:
+                                    piece.addMove((x, y + 2))
+                            # Check En Passant
+                            elif self.passant == self.getNotation(checked_move):
+                                piece.addMove(checked_move)
+            
+            # Knight Movement
+            if piece.getType() == "Knight":
+                # Uses itertools itertools.product to get (x - 1,y - 2),(x - 1,y + 2),(x + 1,y - 2), etc.
+                for checked_move in list(itertools.product([x - 1, x + 1],[y - 2, y + 2])) + list(itertools.product([x - 2, x + 2], [y - 1, y + 1])):
+                    # Checks if move is in bounds
                     if checked_move[0] >= 0 and checked_move[0] < 8 and checked_move[1] >= 0 and checked_move[1] < 8:
+                        # Checks if area is occupied by a piece of the same color
+                        if self.getPiece(checked_move).getColor() != color or attacking:
+                            piece.addMove(checked_move)
+            
+            # Rook Movement
+            if piece.getType() == "Rook":
+                # Generates moves along the vertical, then horizontal and splits them at the piece's position
+                # The left/top movement is reversed, so that it can break when it reaches a piece of the same color
+                for raycast in itertools.chain(raycastFrom([(x, i) for i in range(8)], pos), raycastFrom([(i, y) for i in range(8)], pos)):
+                    for checked_move in raycast:
                         if self.getPiece(checked_move).getType() != None:
                             # If the piece isn't of the same color, it adds a move at that positon
-                            if self.getPiece(checked_move).getColor() != color:
+                            if self.getPiece(checked_move).getColor() != color or attacking:
                                 piece.addMove(checked_move)
                             # If it ran into a piece, it stops the loop
                             break
                         else:
                             piece.addMove(checked_move)
-        
-        # Queen Movement
-        if piece.getType() == "Queen":
-            # Generates moves along two diagonals, one in the increasing x, increasing y and the other in the increasing x, decreasing y
-            # Then generates moves along the straights, same code as rook
-            # First is (x, +y), then (+x, y) then (+x, +y), then (+x, -y)
-            for raycast in itertools.chain(raycastFrom([(x, i) for i in range(8)], pos), raycastFrom([(i, y) for i in range(8)], pos), raycastFrom([(x + i, y + i) for i in range(-7, 8)], pos), raycastFrom([(x + i, y - i) for i in range(-7, 8)], pos)):
-                for checked_move in raycast:
-                    # Check if move is in bounds
-                    if checked_move[0] >= 0 and checked_move[0] < 8 and checked_move[1] >= 0 and checked_move[1] < 8:
-                        if self.getPiece(checked_move).getType() != None:
-                            # If the piece isn't of the same color, it adds a move at that positon
-                            if self.getPiece(checked_move).getColor() != color:
+            
+            # Bishop Movement
+            if piece.getType() == "Bishop":
+                # Generates moves along two diagonals, one in the increasing x, increasing y and the other in the increasing x, decreasing y
+                # Then uses raycast from to order the points from the center in all four directs, seperationg them into 4 lists that are combined using itertools.chain
+                for raycast in itertools.chain(raycastFrom([(x + i, y + i) for i in range(-7, 8)], pos), raycastFrom([(x + i, y - i) for i in range(-7, 8)], pos)):
+                    for checked_move in raycast:
+                        # Check if move is in bounds
+                        if checked_move[0] >= 0 and checked_move[0] < 8 and checked_move[1] >= 0 and checked_move[1] < 8:
+                            if self.getPiece(checked_move).getType() != None:
+                                # If the piece isn't of the same color, it adds a move at that positon
+                                if self.getPiece(checked_move).getColor() != color or attacking:
+                                    piece.addMove(checked_move)
+                                # If it ran into a piece, it stops the loop
+                                break
+                            else:
                                 piece.addMove(checked_move)
-                            # If it ran into a piece, it stops the loop
-                            break
-                        else:
-                            piece.addMove(checked_move)
+            
+            # Queen Movement
+            if piece.getType() == "Queen":
+                # Generates moves along two diagonals, one in the increasing x, increasing y and the other in the increasing x, decreasing y
+                # Then generates moves along the straights, same code as rook
+                # First is (x, +y), then (+x, y) then (+x, +y), then (+x, -y)
+                for raycast in itertools.chain(raycastFrom([(x, i) for i in range(8)], pos), raycastFrom([(i, y) for i in range(8)], pos), raycastFrom([(x + i, y + i) for i in range(-7, 8)], pos), raycastFrom([(x + i, y - i) for i in range(-7, 8)], pos)):
+                    for checked_move in raycast:
+                        # Check if move is in bounds
+                        if checked_move[0] >= 0 and checked_move[0] < 8 and checked_move[1] >= 0 and checked_move[1] < 8:
+                            if self.getPiece(checked_move).getType() != None:
+                                # If the piece isn't of the same color, it adds a move at that positon
+                                if self.getPiece(checked_move).getColor() != color or attacking:
+                                    piece.addMove(checked_move)
+                                # If it ran into a piece, it stops the loop
+                                break
+                            else:
+                                piece.addMove(checked_move)
         
         # King Movement
         if piece.getType() == "King":
@@ -244,15 +248,17 @@ class Board():
                         # Check if move is in bounds
                         if checked_move[0] >= 0 and checked_move[0] < 8 and checked_move[1] >= 0 and checked_move[1] < 8:
                             # Checks if area is occupied by a piece of the same color
-                            if self.getPiece(checked_move).getColor() != color:
+                            if self.getPiece(checked_move).getColor() != color or attacking:
                                 piece.addMove(checked_move)
                                 
         return piece.available_moves
     
     # Moves Piece from target pos to dest    
-    def movePiece(self, pos:tuple, dest:tuple) -> None:      
+    def movePiece(self, pos:tuple, dest:tuple) -> None:
+        piece, color = self.getPiece(pos).getType(), self.getPiece(pos).getColor()
+        
         # Reset halfmoves if pawn move
-        if self.getPiece(pos).getType() == "Pawn":
+        if piece == "Pawn":
             self.halfmove = 0
             # En passant handling
             if pos[1] + 2 == dest[1]:
@@ -261,16 +267,17 @@ class Board():
             elif pos[1] - 2 == dest[1]:
                 self.passant = self.getNotation((pos[0], pos[1] - 1))
                 self.passant_time = 1
+                
         # Reset halfmoves if capture, otherwise incriment
-        elif self.getPiece(dest).getType != None:
+        elif self.getPiece(dest).getType() != None:
             self.halfmove = 0
         else:
             self.halfmove += 1
         
         # En Passont movement
-        if self.getPiece(pos).getType() == "Pawn":
+        if piece == "Pawn":
             if self.getPiece(dest).getType() == None and dest[0] != pos[0]:
-                if self.getPiece(pos).getColor() == "White":
+                if color == "White":
                     self.board[dest[1] + 1][dest[0]] = Piece(None, None)
                 else:
                     self.board[dest[1] - 1][dest[0]] = Piece(None, None)
@@ -278,6 +285,10 @@ class Board():
         # Actually move piece
         self.board[dest[1]][dest[0]] = self.getPiece(pos)
         self.board[pos[1]][pos[0]] = Piece(None, None)
+        if piece == "King":
+            self.kingPos[color == "Black"] = (dest[1], dest[0])
+        
+        # Switch turn
         self.turn = not self.turn
         
         # Increment fullmove
@@ -289,9 +300,19 @@ class Board():
             self.passant_time += -1
         else:
             self.passant = None
-            
+        
+        # Reset check after moving
+        self.check = False
+        
         # Recalculate all attacked positions
         self.setAttackedSquares()
+        
+        # Check if king in check
+        if (self.kingPos[0][1], self.kingPos[0][0]) in (self.attacked_squares) and self.turn:
+            self.check = True
+        elif (self.kingPos[1][1], self.kingPos[1][0]) in (self.attacked_squares) and not self.turn:
+            self.check = True
+        print(self.check, self.kingPos)
     
     # Generates all squares that are under attack by the opposing color
     def setAttackedSquares(self) -> None:
@@ -316,6 +337,10 @@ class Board():
                     self.board[y][x] = Piece(None, None)
                     x += 1
             else:
+                if char == 'K':
+                    self.kingPos[0] = (y, x)
+                elif char == 'k':
+                    self.kingPos[1] = (y, x)
                 self.board[y][x] = Piece(FEN_SYMBOLS[char][0], FEN_SYMBOLS[char][1])
                 x += 1
                     
@@ -338,7 +363,7 @@ class Board():
         output += f"\nCastling: {self.castling}\nEn passant: {self.passant}\nHalfmoves: {self.halfmove}\nFullmoves: {self.fullmove}\n  "
         
         # Headers for columns
-        for column_index, column in enumerate(self.board[0]):
+        for column_index, _ in enumerate(self.board[0]):
             output += f"    --- {column_index} ---  "
         output += "\n"
         
@@ -348,7 +373,7 @@ class Board():
             output += f"{row_index} | "
             
             # Main Bulk of the Display
-            for column_index, column in enumerate(row):
+            for column_index, _ in enumerate(row):
                 
                 # Adds whitespace so everything is the same size
                 for i in range(12 - len(str(self.getPiece((column_index, row_index))))):
