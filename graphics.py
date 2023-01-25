@@ -100,13 +100,16 @@ class DCRenderer():
         self.should_update = True
         self.update()
         self.drawn_moves.append(piece.rect)
+        
+        # Draw attacked Squares
+        for space in self.board.attacked_squares:
+            pygame.draw.circle(self.screen, (222, 84, 84), ((space[0]*self.width) + (self.width/2), (space[1]*self.height) + (self.height/2)), self.width / 3.5)
+        
+        # Draw the available moves
         for space in self.board.getAvailableMoves((int(piece.rect.x/self.width), int(piece.rect.y/self.height))):
             pygame.draw.circle(self.screen, (84, 222, 139), ((space[0]*self.width) + (self.width/2), (space[1]*self.height) + (self.height/2)), self.width / 4)
             self.drawn_moves.append(pygame.Rect(space[0]*self.width, space[1]*self.height, self.width, self.height))
         
-        # # Draw attacked Squares
-        # for space in self.board.attacked_squares:
-        #     pygame.draw.circle(self.screen, (222, 84, 84), ((space[0]*self.width) + (self.width/2), (space[1]*self.height) + (self.height/2)), self.width / 4)
         
     # Returns whether the process is still running
     def isRunning(self) -> bool:

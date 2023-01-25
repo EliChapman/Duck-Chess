@@ -1,4 +1,4 @@
-import itertools
+import itertools, copy
 DEFAULT_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 # DEFAULT_FEN = "8/5ppp/8/8/8/4K3/PPP4/8 w - - 0 1"
 FEN_SYMBOLS = {
@@ -54,20 +54,37 @@ class Piece():
     
     # Adds a move to list of available moves
     def addMove(self, move: tuple or list) -> None:
+        # Add single move
         if type(move) == tuple:
-            self.available_moves.append((move[0], move[1]))
-        else:
+            self.available_moves.append(move)
+        # Add multiple moves from list
+        elif type(move) == list:
             self.available_moves += move
+        else:
+            raise(TypeError("Invalid move type: " + type(move)))
+    
+    def removeMove(self, move: tuple or list) -> None:
+        print(move)
+        # Delete single move
+        if type(move) == tuple:
+            self.available_moves.remove((move[1], move[0]))
+        # Delete multiple moves from list
+        elif type(move) == list:
+            for checked_move in move:
+                self.available_moves.remove((checked_move[1], checked_move[0]))
+        else:
+            raise(TypeError("Invalid move type: " + type(move)))
+            
     # Represents the Piece object as a string, mostly for debugging
     def __repr__(self) -> str:
-        return(f"{self.color} {self.type}")
-
+        return(f"{self.color} {self.type}")     
 
 class Board():
     # Initialize Board with a List of column number of lists with row length
     def __init__(self, fen:str=DEFAULT_FEN, row=8, column=8) -> None:
         self.board = [[Piece(None, None) for x in range(column)] for y in range(row)]
         self.check = False
+        self.gettingCheckMoves = False 
         self.kingPos = [(0, 0), (0, 0)]
         self.turn = True
         self.castling = 'KQkq'
@@ -102,14 +119,52 @@ class Board():
         return self.attacked_squares
     
     # Returns a dictionary of all possible moves, for testing purposes
-    def getAllMoves(self, color:str="") -> dict:
+    def getAllMoves(self, color: str or bool = None) -> dict:
+        if type(color) == str:
+            color = color == "White"
+        elif not type(color) == bool:
+            raise(TypeError("Invalid color type: " + type(color)))
         moves = {}
         for y, row in enumerate(self.board):
             for x, piece in enumerate(row):
-                if piece.getType() != None and (color == "" or piece.getColor() == color):
+                if piece.getType() != None and (color == None or piece.getColor() == color):
                     moves[(x, y)] = self.getAvailableMoves((x, y))
         return moves
                 
+    # A function to check if a move will result in a king being in check
+    def checkForCheck(self, pos:tuple,  dest:tuple) -> bool:
+        original_piece = self.getPiece(pos)
+        dest_piece = self.getPiece(dest)
+        check_state = False
+        attacked_squares_copy = copy.deepcopy(self.attacked_squares)
+        
+        # Make move
+        self.board[pos[1]][pos[0]] = Piece(None, None)
+        self.board[dest[1]][dest[0]] = original_piece
+        
+        # Switch turn
+        self.turn = not self.turn
+        
+        # Recalculate all attacked positions
+        self.setAttackedSquares()
+        
+        # Check if king in check
+        if (self.kingPos[0][1], self.kingPos[0][0]) in (self.attacked_squares) and self.turn:
+            check_state = True
+        elif (self.kingPos[1][1], self.kingPos[1][0]) in (self.attacked_squares) and not self.turn:
+            check_state = True
+            
+        # Reset board changes
+        self.turn = not self.turn
+        self.board[pos[1]][pos[0]] = original_piece
+        self.board[dest[1]][dest[0]] = dest_piece
+        self.attacked_squares = attacked_squares_copy
+        
+        print(f"Move: {dest}\nState: {check_state}")
+        
+        return check_state
+        
+                        
     # Returns a FEN string of the current position
     def getFEN(self) -> str:
         fen = ""
@@ -142,9 +197,17 @@ class Board():
         color = piece.getColor()
         piece.clearAvailableMoves()
         x, y = pos
-        
-        # Only move king if in check
-        if not self.check:
+
+        # Check Movement
+        if self.check and not self.gettingCheckMoves:
+            self.gettingCheckMoves = True
+            moves = self.getAvailableMoves(pos)
+            for checked_move in moves:
+                if not self.checkForCheck(pos, checked_move):
+                    piece.removeMove(checked_move)
+            self.gettingCheckMoves = False
+
+        else:
             # Pawn Movement
             if piece.getType() == "Pawn":
                 # Adds the diagonal options for attack purposes
@@ -235,25 +298,25 @@ class Board():
                                 break
                             else:
                                 piece.addMove(checked_move)
-        
-        # King Movement
-        if piece.getType() == "King":
-            # Iterates through a 3x3 square around the king
-            for x_offset, y_offset in itertools.product(range(-1, 2), range(-1, 2)):
-                checked_move = (x + x_offset, y + y_offset)
-                # Checks if the king is trying to move into Check
-                if checked_move not in self.attacked_squares:
-                    # Checks if move is the current position of the king
-                    if checked_move != (x, y):
-                        # Check if move is in bounds
-                        if checked_move[0] >= 0 and checked_move[0] < 8 and checked_move[1] >= 0 and checked_move[1] < 8:
-                            # Checks if area is occupied by a piece of the same color
-                            if self.getPiece(checked_move).getColor() != color or attacking:
-                                piece.addMove(checked_move)
-                                
+            
+            # King Movement
+            if piece.getType() == "King":
+                # Iterates through a 3x3 square around the king
+                for x_offset, y_offset in itertools.product(range(-1, 2), range(-1, 2)):
+                    checked_move = (x + x_offset, y + y_offset)
+                    # Checks if the king is trying to move into Check
+                    if checked_move not in self.attacked_squares:
+                        # Checks if move is the current position of the king
+                        if checked_move != (x, y):
+                            # Check if move is in bounds
+                            if checked_move[0] >= 0 and checked_move[0] < 8 and checked_move[1] >= 0 and checked_move[1] < 8:
+                                # Checks if area is occupied by a piece of the same color
+                                if self.getPiece(checked_move).getColor() != color or attacking:
+                                    piece.addMove(checked_move)
+                                    
         return piece.available_moves
     
-    # Moves Piece from target pos to dest    
+    # Moves Piece from target pos to dest
     def movePiece(self, pos:tuple, dest:tuple) -> None:
         piece, color = self.getPiece(pos).getType(), self.getPiece(pos).getColor()
         
@@ -312,7 +375,6 @@ class Board():
             self.check = True
         elif (self.kingPos[1][1], self.kingPos[1][0]) in (self.attacked_squares) and not self.turn:
             self.check = True
-        print(self.check, self.kingPos)
     
     # Generates all squares that are under attack by the opposing color
     def setAttackedSquares(self) -> None:

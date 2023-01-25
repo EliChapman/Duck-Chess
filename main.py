@@ -3,7 +3,7 @@ import graphics
 import pygame
 
 my_board = duck_chess.Board()
-renderer = graphics.DCRenderer(800, 800, "Duck Chess", my_board, colors={"White":(255, 255, 255), "Black":(0, 0, 0)})
+renderer = graphics.DCRenderer(600, 600, "Duck Chess", my_board, colors={"White":(255, 255, 255), "Black":(0, 0, 0)})
 
 renderer.addPieces()
 
