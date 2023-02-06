@@ -64,7 +64,6 @@ class Piece():
             raise(TypeError("Invalid move type: " + type(move)))
     
     def removeMove(self, move: tuple or list) -> None:
-        print(move)
         # Delete single move
         if type(move) == tuple:
             self.available_moves.remove((move[1], move[0]))
@@ -142,25 +141,19 @@ class Board():
         self.board[pos[1]][pos[0]] = Piece(None, None)
         self.board[dest[1]][dest[0]] = original_piece
         
-        # Switch turn
-        self.turn = not self.turn
-        
         # Recalculate all attacked positions
         self.setAttackedSquares()
-        
-        # Check if king in check
+        # Check if White King in check
         if (self.kingPos[0][1], self.kingPos[0][0]) in (self.attacked_squares) and self.turn:
             check_state = True
+        # Check if Black King in check
         elif (self.kingPos[1][1], self.kingPos[1][0]) in (self.attacked_squares) and not self.turn:
             check_state = True
             
         # Reset board changes
-        self.turn = not self.turn
         self.board[pos[1]][pos[0]] = original_piece
         self.board[dest[1]][dest[0]] = dest_piece
         self.attacked_squares = attacked_squares_copy
-        
-        print(f"Move: {dest}\nState: {check_state}")
         
         return check_state
         
@@ -197,14 +190,20 @@ class Board():
         color = piece.getColor()
         piece.clearAvailableMoves()
         x, y = pos
-
+        
         # Check Movement
         if self.check and not self.gettingCheckMoves:
             self.gettingCheckMoves = True
-            moves = self.getAvailableMoves(pos)
-            for checked_move in moves:
-                if not self.checkForCheck(pos, checked_move):
-                    piece.removeMove(checked_move)
+            # A list of moves to be removed
+            invalid_moves = []
+            # Iterate through available moves for the selected piece
+            for checked_move in self.getAvailableMoves(pos):
+                # If that move results in check still being present, add to invalid move list
+                if self.checkForCheck(pos, checked_move):
+                    invalid_moves.append(checked_move)
+            # Remove all invalid moves
+            for move in invalid_moves:
+                piece.removeMove((move[1], move[0]))
             self.gettingCheckMoves = False
 
         else:
@@ -238,7 +237,7 @@ class Board():
                             # Check En Passant
                             elif self.passant == self.getNotation(checked_move):
                                 piece.addMove(checked_move)
-            
+
             # Knight Movement
             if piece.getType() == "Knight":
                 # Uses itertools itertools.product to get (x - 1,y - 2),(x - 1,y + 2),(x + 1,y - 2), etc.
@@ -313,7 +312,7 @@ class Board():
                                 # Checks if area is occupied by a piece of the same color
                                 if self.getPiece(checked_move).getColor() != color or attacking:
                                     piece.addMove(checked_move)
-                                    
+
         return piece.available_moves
     
     # Moves Piece from target pos to dest

@@ -50,7 +50,12 @@ class DCRenderer():
             if event.type == pygame.QUIT:
                 self.running = False
                 
-            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1: 
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_r:
+                self.board.setFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+                self.addPieces()
+                self.update(force=True)
+                
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1: 
                 x,y = pygame.mouse.get_pos()
                 clicked_piece = False
                 for piece in self.pieces.sprites():
@@ -101,9 +106,9 @@ class DCRenderer():
         self.update()
         self.drawn_moves.append(piece.rect)
         
-        # Draw attacked Squares
-        for space in self.board.attacked_squares:
-            pygame.draw.circle(self.screen, (222, 84, 84), ((space[0]*self.width) + (self.width/2), (space[1]*self.height) + (self.height/2)), self.width / 3.5)
+        # # Draw attacked Squares
+        # for space in self.board.attacked_squares:
+        #     pygame.draw.circle(self.screen, (222, 84, 84), ((space[0]*self.width) + (self.width/2), (space[1]*self.height) + (self.height/2)), self.width / 3.5)
         
         # Draw the available moves
         for space in self.board.getAvailableMoves((int(piece.rect.x/self.width), int(piece.rect.y/self.height))):
