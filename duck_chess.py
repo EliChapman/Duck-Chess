@@ -1,5 +1,5 @@
 import itertools
-DEFAULT_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+DEFAULT_FEN = "rnbqkbnr/pppDpppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 # DEFAULT_FEN = "8/5ppp/8/8/8/4K3/PPP4/8 w - - 0 1"
 FEN_SYMBOLS = {
     "r" : ["Rook", "Black"],
@@ -89,6 +89,7 @@ class Board():
         self.fullmove = 1
         self.passant_time = 0
         self.attacked_squares = []
+        self.duck_pos = []
         self.setFEN(DEFAULT_FEN)
     
     # Returns the Board listself.board
@@ -168,11 +169,19 @@ class Board():
     def getAvailableMoves(self, pos: tuple, attacking:bool = False) -> list:
         piece = self.getPiece(pos)
         color = piece.getColor()
+        attackable_color = "White" if color == "Black" else "Black" 
         piece.clearAvailableMoves()
         x, y = pos
 
+        # Duck Movement
+        if piece.getType() == "Duck":
+            for i in range(len(self.board)):
+                for j in range(len(self.board[i])):
+                    if (self.board[i][j].getType() == None):
+                        piece.addMove((j, i))
+
         # Pawn Movement
-        if piece.getType() == "Pawn":
+        elif piece.getType() == "Pawn":
             # Adds the diagonal options for attack purposes
             if attacking:
                 if color == "Black":
@@ -191,7 +200,7 @@ class Board():
                     checked_move = (x + i, y + 1) if color == "Black" else (x + i, y - 1)
                     if checked_move[0] >= 0 and checked_move[0] < 8 and checked_move[1] >= 0 and checked_move[1] < 8:
                         # Check Diagonal attacks
-                        if ((i != 0 and self.getPiece(checked_move).getType() != None) and (self.getPiece(checked_move).getColor() != color)):
+                        if ((i != 0 and self.getPiece(checked_move).getType() != None) and (self.getPiece(checked_move).getColor() == attackable_color)):
                             piece.addMove(checked_move)
                         # Check forward movement
                         elif i == 0 and self.getPiece(checked_move).getType() == None:
@@ -213,7 +222,7 @@ class Board():
                 # Checks if move is in bounds
                 if checked_move[0] >= 0 and checked_move[0] < 8 and checked_move[1] >= 0 and checked_move[1] < 8:
                     # Checks if area is occupied by a piece of the same color
-                    if self.getPiece(checked_move).getColor() != color or attacking:
+                    if self.getPiece(checked_move).getColor() == attackable_color or attacking or self.getPiece(checked_move).getColor() == None:
                         piece.addMove(checked_move)
         
         # Rook Movement
@@ -224,7 +233,7 @@ class Board():
                 for checked_move in raycast:
                     if self.getPiece(checked_move).getType() != None:
                         # If the piece isn't of the same color, it adds a move at that positon
-                        if self.getPiece(checked_move).getColor() != color or attacking:
+                        if self.getPiece(checked_move).getColor() == attackable_color or attacking:
                             piece.addMove(checked_move)
                         # If it ran into a piece, it stops the loop
                         break
@@ -241,7 +250,7 @@ class Board():
                     if checked_move[0] >= 0 and checked_move[0] < 8 and checked_move[1] >= 0 and checked_move[1] < 8:
                         if self.getPiece(checked_move).getType() != None:
                             # If the piece isn't of the same color, it adds a move at that positon
-                            if self.getPiece(checked_move).getColor() != color or attacking:
+                            if self.getPiece(checked_move).getColor() == attackable_color or attacking:
                                 piece.addMove(checked_move)
                             # If it ran into a piece, it stops the loop
                             break
@@ -259,7 +268,7 @@ class Board():
                     if checked_move[0] >= 0 and checked_move[0] < 8 and checked_move[1] >= 0 and checked_move[1] < 8:
                         if self.getPiece(checked_move).getType() != None:
                             # If the piece isn't of the same color, it adds a move at that positon
-                            if self.getPiece(checked_move).getColor() != color or attacking:
+                            if self.getPiece(checked_move).getColor() == attackable_color or attacking:
                                 piece.addMove(checked_move)
                             # If it ran into a piece, it stops the loop
                             break
@@ -278,7 +287,7 @@ class Board():
                         # Check if move is in bounds
                         if checked_move[0] >= 0 and checked_move[0] < 8 and checked_move[1] >= 0 and checked_move[1] < 8:
                             # Checks if area is occupied by a piece of the same color
-                            if self.getPiece(checked_move).getColor() != color or attacking:
+                            if self.getPiece(checked_move).getColor() == attackable_color or attacking:
                                 piece.addMove(checked_move)
                                 
         return piece.available_moves
@@ -286,51 +295,60 @@ class Board():
     # Moves Piece from target pos to dest
     def movePiece(self, pos:tuple, dest:tuple) -> None:
         piece, color = self.getPiece(pos).getType(), self.getPiece(pos).getColor()
-        
-        # Reset halfmoves if pawn move
-        if piece == "Pawn":
-            self.halfmove = 0
-            # En passant handling
-            if pos[1] + 2 == dest[1]:
-                self.passant = self.getNotation((pos[0], pos[1] + 1))
-                self.passant_time = 2
-            elif pos[1] - 2 == dest[1]:
-                self.passant = self.getNotation((pos[0], pos[1] - 1))
-                self.passant_time = 1
-                
-        # Reset halfmoves if capture, otherwise incriment
-        elif self.getPiece(dest).getType() != None:
-            self.halfmove = 0
-        else:
-            self.halfmove += 1
-        
-        # En Passont movement
-        if piece == "Pawn":
-            if self.getPiece(dest).getType() == None and dest[0] != pos[0]:
-                if color == "White":
-                    self.board[dest[1] + 1][dest[0]] = Piece(None, None)
-                else:
-                    self.board[dest[1] - 1][dest[0]] = Piece(None, None)
-        
-        # Actually move piece
-        self.board[dest[1]][dest[0]] = self.getPiece(pos)
-        self.board[pos[1]][pos[0]] = Piece(None, None)
 
-        # Switch turn
-        self.turn = not self.turn
+        # Duck Movement
+        if piece == "Duck":
+            # Actually move piece
+            self.board[dest[1]][dest[0]] = self.getPiece(pos)
+            self.board[pos[1]][pos[0]] = Piece(None, None)
+            
+            # Switch turn
+            self.turn = not self.turn
+            
+            # Increment fullmove
+            if self.getPiece(dest).getColor() == "Black":
+                self.fullmove += 1
+            
+            # Make En Passant Expire
+            if self.passant_time != 0:
+                self.passant_time += -1
+            else:
+                self.passant = None
+            
+            # Recalculate all attacked positions
+            self.setAttackedSquares()
+            
+            self.duck_pos = dest
         
-        # Increment fullmove
-        if self.getPiece(dest).getColor() == "Black":
-            self.fullmove += 1
-        
-        # Make En Passant Expire
-        if self.passant_time != 0:
-            self.passant_time += -1
         else:
-            self.passant = None
-        
-        # Recalculate all attacked positions
-        self.setAttackedSquares()
+            # Reset halfmoves if pawn move
+            if piece == "Pawn":
+                self.halfmove = 0
+                # En passant handling
+                if pos[1] + 2 == dest[1]:
+                    self.passant = self.getNotation((pos[0], pos[1] + 1))
+                    self.passant_time = 2
+                elif pos[1] - 2 == dest[1]:
+                    self.passant = self.getNotation((pos[0], pos[1] - 1))
+                    self.passant_time = 1
+                    
+            # Reset halfmoves if capture, otherwise incriment
+            elif self.getPiece(dest).getType() != None:
+                self.halfmove = 0
+            else:
+                self.halfmove += 1
+            
+            # En Passont movement
+            if piece == "Pawn":
+                if self.getPiece(dest).getType() == None and dest[0] != pos[0]:
+                    if color == "White":
+                        self.board[dest[1] + 1][dest[0]] = Piece(None, None)
+                    else:
+                        self.board[dest[1] - 1][dest[0]] = Piece(None, None)
+            
+            # Actually move piece
+            self.board[dest[1]][dest[0]] = self.getPiece(pos)
+            self.board[pos[1]][pos[0]] = Piece(None, None)
             
     # Generates all squares that are under attack by the opposing color
     def setAttackedSquares(self) -> None:
@@ -356,6 +374,8 @@ class Board():
                     x += 1
             else:
                 self.board[y][x] = Piece(FEN_SYMBOLS[char][0], FEN_SYMBOLS[char][1])
+                if char == "D":
+                    self.duck_pos = (x, y)
                 x += 1
                     
         # The non-piece stuff

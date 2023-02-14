@@ -10,7 +10,7 @@ class PieceSprite(pygame.sprite.Sprite):
     def __init__(self, type: str, height: int, width: int, pos: tuple) -> None:
         super().__init__()
         
-        self.image = pygame.image.load(f"Sprites\\{type}.png")
+        self.image = pygame.image.load(f"..\\Sprites\\{type}.png")
         self.image = pygame.transform.scale(self.image, (width, height))
         self.rect = self.image.get_rect()
         self.rect.x, self.rect.y = pos[0]*width, pos[1]*height
@@ -40,6 +40,7 @@ class DCRenderer():
         self.board = board
         self.should_update = True
         self.drawn_moves = []
+        self.duck_turn = 0
         
     # Process input/events
     def processInputs(self) -> None:
@@ -57,32 +58,48 @@ class DCRenderer():
                 
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1: 
                 x,y = pygame.mouse.get_pos()
-                clicked_piece = False
-                for piece in self.pieces.sprites():
-                    if piece.rect.collidepoint(x, y):
-                        if self.board.getTurn() == self.board.getPiece((int(piece.rect.x/self.width), int(piece.rect.y/self.height))).getColor():
-                            clicked_piece = True
-                            self.drawMoves(piece)
-                            break
-                
-                if not clicked_piece:
+                if self.duck_turn != 2:
+                    clicked_piece = False
+                    for piece in self.pieces.sprites():
+                        if piece.rect.collidepoint(x, y):
+                            if self.board.getTurn() == self.board.getPiece((int(piece.rect.x/self.width), int(piece.rect.y/self.height))).getColor():
+                                clicked_piece = True
+                                self.drawMoves(piece)
+                                break
+                    
+                    if not clicked_piece:
+                        for move in self.drawn_moves:
+                            if move != self.drawn_moves[0] and move.collidepoint(x, y):
+                                self.board.movePiece((int(self.drawn_moves[0].x/self.width), int(self.drawn_moves[0].y/self.height)), (int(move.x/self.width), int(move.y/self.height)))
+                                self.addPieces()
+                                self.duck_turn = 1
+                                break
+                        self.should_update = True
+                else:
                     for move in self.drawn_moves:
                         if move != self.drawn_moves[0] and move.collidepoint(x, y):
                             self.board.movePiece((int(self.drawn_moves[0].x/self.width), int(self.drawn_moves[0].y/self.height)), (int(move.x/self.width), int(move.y/self.height)))
                             self.addPieces()
                             break
-                    self.should_update = True    
-                
+                        self.duck_turn = 0
+                        self.should_update = True
+                    
     # Tells the renderer when to update the pieces, so it doesn't draw when nothing changes
     def update(self, force:bool = False) -> None:
         if self.should_update or force:
             self.draw("board", ["White", "Black"])
             self.draw("pieces", [])
             self.drawn_moves = []
+            
+            if self.duck_turn == 1:
+                self.duck_turn += 1
+                self.drawMoves(self.pieces.sprites()[self.duck_sprite_index])
+            
             if self.board.getGameState() == "win":
                 self.board.turn = not self.board.turn
                 print(self.board.getTurn() + " Win")
                 self.running = False
+                
             self.should_update = False
     
     # Draw various things
@@ -127,8 +144,10 @@ class DCRenderer():
     # Translates the current board into sprites
     def addPieces(self) -> None:
         self.pieces.remove(self.pieces)
-        for row_indew, row in enumerate(self.board.getBoard()):
+        for row_index, row in enumerate(self.board.getBoard()):
             for column_index, piece in enumerate(row):
                 if piece.getType() != None:
-                    self.pieces.add(PieceSprite(str(piece), self.width, self.height, (column_index, row_indew)))
+                    if piece.getType() == "Duck":
+                        self.duck_sprite_index = self.pieces.__len__()
+                    self.pieces.add(PieceSprite(str(piece), self.width, self.height, (column_index, row_index)))
     
