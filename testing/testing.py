@@ -4,7 +4,7 @@ import pygame
 import time
 
 my_board = duck_chess.Board()
-# renderer = graphics.DCRenderer(800, 800, "Duck Chess", my_board, colors={"White":(255, 255, 255), "Black":(0, 0, 0)})
+# renderer = graphics.DCRenderer(200, 200, "Duck Chess", my_board, colors={"White":(255, 255, 255), "Black":(0, 0, 0)})
 
 # renderer.addPieces()
 
@@ -25,7 +25,7 @@ def movePieces(depth:int, current_depth:int = 0) -> None:
                     
             # renderer.update(True)
             
-            # # Done after drawing everything to the screen
+            # Done after drawing everything to the screen
             # pygame.display.flip()
             if current_depth+1 < depth:
                 total_moves += movePieces(depth, current_depth=current_depth+1)

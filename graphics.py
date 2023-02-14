@@ -79,6 +79,10 @@ class DCRenderer():
             self.draw("board", ["White", "Black"])
             self.draw("pieces", [])
             self.drawn_moves = []
+            if self.board.getGameState() == "win":
+                self.board.turn = not self.board.turn
+                print(self.board.getTurn() + " Win")
+                self.running = False
             self.should_update = False
     
     # Draw various things
