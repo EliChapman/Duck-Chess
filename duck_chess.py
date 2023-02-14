@@ -1,5 +1,5 @@
 import itertools
-DEFAULT_FEN = "rnbqkbnr/pppDpppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+DEFAULT_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 # DEFAULT_FEN = "8/5ppp/8/8/8/4K3/PPP4/8 w - - 0 1"
 FEN_SYMBOLS = {
     "r" : ["Rook", "Black"],
@@ -385,6 +385,9 @@ class Board():
         self.halfmove = int(fen[4])
         self.fullmove = int(fen[5])
 
+        if self.findPiece(Piece("Duck", "Duck")) == (-1, -1):
+            self.board.append([Piece("Duck", "Duck")])
+        
         self.setAttackedSquares()
 
 
